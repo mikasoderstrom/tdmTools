@@ -1,0 +1,48 @@
+# !/usr/bin/expect -f
+
+set timeout 120
+set recfile [lindex $argv 0];
+set size [lindex $argv 1];
+
+
+spawn bash
+expect "$ "
+
+send "ls -lA \r"
+expect "$ "
+
+# start server on pc that receives audio bits
+send "netcat -u -l 7777 > $recfile & \r"
+
+expect "$ "
+
+# config beaglebone a bit
+send "ssh debian@192.168.1.20 ./BeagleLogic/config.sh \r"
+expect "$ "
+
+# set fs to 16 kHz (48/3)
+#send "ssh debian@192.168.1.20 'echo 20000000 > /sys/devices/virtual/misc/beaglelogic/samplerate' \r"
+send "ssh debian@192.168.1.20 'echo 50000000 > /sys/devices/virtual/misc/beaglelogic/samplerate' \r"
+#send "ssh debian@192.168.1.20 'echo 100000000 > /sys/devices/virtual/misc/beaglelogic/samplerate' \r"
+expect "$ "
+
+# continous sampling
+send "ssh debian@192.168.1.20 'echo 1 > /sys/devices/virtual/misc/beaglelogic/triggerflags' \r"
+expect "$ "
+
+# start the sampling
+send "ssh debian@192.168.1.20 dd if=/dev/beaglelogic bs=1M count=$size | nc -u 192.168.1.1 7777 \r"
+# wait for the sampling to stop
+expect "MB/s"
+
+#exit the server on the pc
+send \x03
+expect "$ "
+
+# transform the bit sea to samples
+send "time ~/src/ljudkriget/tdmTools/nibbles2pcm/nibbles2pcm $recfile $recfile.txt \r"
+expect "$ "
+
+# send "cd ../tdmTools/pcm-eval/ \r"
+# expect "$ "
+
